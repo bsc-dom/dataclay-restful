@@ -3,6 +3,7 @@ from typing import Awaitable, Callable
 from fastapi import FastAPI
 
 from dataclay_restful.services.metadata_service.lifetime import init_mds, shutdown_mds
+from dataclay_restful.services.dataclay.lifetime import init_dc_client, shutdown_dc_client
 
 
 def register_startup_event(
@@ -22,6 +23,7 @@ def register_startup_event(
     async def _startup() -> None:  # noqa: WPS430
         app.middleware_stack = None
         init_mds(app)
+        init_dc_client(app)
         app.middleware_stack = app.build_middleware_stack()
         pass  # noqa: WPS420
 
@@ -41,6 +43,7 @@ def register_shutdown_event(
     @app.on_event("shutdown")
     async def _shutdown() -> None:  # noqa: WPS430
         shutdown_mds(app)
+        shutdown_dc_client(app)
         pass  # noqa: WPS420
 
     return _shutdown
