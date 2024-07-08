@@ -130,9 +130,9 @@ async def update_person_attribute(id: UUID, update_request: PersonBase) -> Any:
 
 
 @router.post("/{uuid}/{method}")
-async def read_person_attribute(id: UUID, method: str) -> Any:
+async def call_person_method(id: UUID, method: str) -> Any:
     """
-    Retrieve the value of an attribute for a person by UUID.
+    Call a method of a person by UUID.
     """
     # TODO: Improve the session handling with contextvars
     session_var.set(
