@@ -16,7 +16,7 @@ def init_dc_client(app: FastAPI) -> None:  # pragma: no cover
     # allow modification of the runtime attributes like swapping the metadata
     # service by the metadata API.
 
-    dc_client = Client("localhost", 16587)
+    dc_client = Client(settings.mds_host, settings.mds_port)
     dc_client.start()
     dc_client.runtime.metadata_service = metadata_api
     app.state.dc_client = dc_client

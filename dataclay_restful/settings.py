@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     These parameters can be configured
     with environment variables.
     """
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_prefix="DATACLAY_RESTFUL_",
+        env_file_encoding="utf-8",
+    )
 
     host: str = "127.0.0.1"
     port: int = 8000
@@ -38,14 +43,11 @@ class Settings(BaseSettings):
 
     log_level: LogLevel = LogLevel.INFO
 
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_prefix="DATACLAY_RESTFUL_",
-        env_file_encoding="utf-8",
-    )
-
     redis_host: str = "localhost"
     redis_port: int = 6379
+
+    mds_host: str = "localhost"
+    mds_port: int = 16587
 
 
 settings = Settings()
