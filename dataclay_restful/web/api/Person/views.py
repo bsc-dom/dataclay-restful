@@ -27,11 +27,11 @@ router = APIRouter()
 
 
 @router.get("/")
-async def read_persons(mds: MetadataAPI = Depends(get_mds)) -> dict[UUID, ObjectMetadata]:
+async def read_persons(mds: MetadataAPI = Depends(get_mds)) -> list[ObjectMetadata]:
     """
     Retrieve all persons metadata.
     """
-    return await mds.get_all_objects(filter_func=lambda x: "Person" in x.class_name)
+    return (await mds.get_all_objects(filter_func=lambda x: "Person" in x.class_name)).values()
 
 
 class CustomEncoder(json.JSONEncoder):
@@ -159,7 +159,7 @@ async def call_person_method(id: UUID, method: str) -> Any:
 
 
 @router.post("/")
-async def create_person(person_in: PersonCreate, make_persistent: MakePersistent):
+async def create_person(person_in: PersonCreate, make_persistent: MakePersistent, mds: MetadataAPI = Depends(get_mds)) -> ObjectMetadata:
     """
     Create a new person.
     """
@@ -180,4 +180,5 @@ async def create_person(person_in: PersonCreate, make_persistent: MakePersistent
         raise HTTPException(
             status_code=400, detail=f"Alias '{make_persistent.alias}' already exists."
         )
-    return person.getID()
+    
+    return person._dc_meta
