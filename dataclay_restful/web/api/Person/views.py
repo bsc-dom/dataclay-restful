@@ -127,3 +127,32 @@ async def update_person_attribute(id: UUID, update_request: PersonBase) -> Any:
         raise HTTPException(status_code=500, detail="Failed to update attribute value.")
 
     return {"message": "Attribute updated successfully."}
+
+
+@router.post("/{uuid}/{method}")
+async def read_person_attribute(id: UUID, method: str) -> Any:
+    """
+    Retrieve the value of an attribute for a person by UUID.
+    """
+    # TODO: Improve the session handling with contextvars
+    session_var.set(
+        {
+            "dataset_name": "admin",
+            "username": "admin",
+            "token": "admin",
+        }
+    )
+
+    try:
+        person = Person.get_by_id(id)
+    except DoesNotExistError as e:
+        raise HTTPException(status_code=404, detail=f"Person with UUID {id} does not exist.")
+
+    try:
+        value = getattr(person, method)()
+    except AttributeError:
+        raise HTTPException(
+            status_code=400, detail=f"Method '{method}' does not exist in Person object."
+        )
+
+    return value
