@@ -12,7 +12,8 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.9"
-fastapi = "^0.100.0"
+fastapi = "^0.109.1"
+starlette = "^0.36.2"
 uvicorn = { version = "^0.22.0", extras = ["standard"] }
 pydantic = "^2"
 pydantic-settings = "^2"
