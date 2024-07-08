@@ -98,7 +98,7 @@ async def read_person_attribute(id: UUID, attribute: str) -> Any:
         return attribute_value
 
 
-@router.put("/{uuid}")
+@router.patch("/{uuid}")
 async def update_person(id: UUID, person_in: PersonBase) -> Any:
     """
     Update the attributes of a person by UUID.
@@ -129,7 +129,7 @@ async def update_person(id: UUID, person_in: PersonBase) -> Any:
     return {"message": "Attribute updated successfully."}
 
 
-@router.put("/{uuid}/{method}")
+@router.post("/{uuid}/{method}")
 async def call_person_method(id: UUID, method: str) -> Any:
     """
     Call a method of a person by UUID.
