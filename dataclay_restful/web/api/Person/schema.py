@@ -32,3 +32,13 @@ class PersonBase(BaseModel):
     age: Optional[int] = None
     spouse: Optional[UUID] = None
     dog: Optional[UUID] = None
+
+
+class PersonCreate(BaseModel):
+    name: str
+    age: int
+
+
+class MakePersistent(BaseModel):
+    alias: Optional[str] = None
+    backend_id: Optional[str] = None

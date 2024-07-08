@@ -9,12 +9,12 @@ from fastapi import APIRouter
 from fastapi.param_functions import Depends
 from dataclay_restful.services.metadata_service.dependency import get_mds
 from dataclay_restful.services.dataclay.dependency import get_dc_client
-from dataclay_restful.web.api.Person.schema import PersonBase
+from dataclay_restful.web.api.Person.schema import PersonBase, PersonCreate, MakePersistent
 
 from dataclay.metadata.api import MetadataAPI
 
 from dataclay.metadata.kvdata import ObjectMetadata
-from dataclay.exceptions import DoesNotExistError
+from dataclay.exceptions import DoesNotExistError, AlreadyExistError
 from dataclay.contrib.modeltest.family import Person
 from dataclay.dataclay_object import DataClayObject
 
@@ -99,7 +99,7 @@ async def read_person_attribute(id: UUID, attribute: str) -> Any:
 
 
 @router.put("/{uuid}")
-async def update_person_attribute(id: UUID, update_request: PersonBase) -> Any:
+async def update_person(id: UUID, person_in: PersonBase) -> Any:
     """
     Update the attributes of a person by UUID.
     """
@@ -122,14 +122,14 @@ async def update_person_attribute(id: UUID, update_request: PersonBase) -> Any:
     try:
         # TODO: Allow to update DataClayObject attributes using their UUID.
         # We should first retrieve the object attribute by its UUID and then update the current object attribute.
-        person.dc_update_properties(update_request.model_dump(exclude_unset=True, by_alias=True))
+        person.dc_update_properties(person_in.model_dump(exclude_unset=True, by_alias=True))
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to update attribute value.")
 
     return {"message": "Attribute updated successfully."}
 
 
-@router.post("/{uuid}/{method}")
+@router.put("/{uuid}/{method}")
 async def call_person_method(id: UUID, method: str) -> Any:
     """
     Call a method of a person by UUID.
@@ -156,3 +156,28 @@ async def call_person_method(id: UUID, method: str) -> Any:
         )
 
     return value
+
+
+@router.post("/")
+async def create_person(person_in: PersonCreate, make_persistent: MakePersistent):
+    """
+    Create a new person.
+    """
+    # TODO: Improve the session handling with contextvars
+    session_var.set(
+        {
+            "dataset_name": "admin",
+            "username": "admin",
+            "token": "admin",
+        }
+    )
+
+    person = Person(**person_in.model_dump(exclude_unset=True))
+
+    try:
+        person.make_persistent(**make_persistent.model_dump(exclude_unset=True))
+    except AlreadyExistError as e:
+        raise HTTPException(
+            status_code=400, detail=f"Alias '{make_persistent.alias}' already exists."
+        )
+    return person.getID()
