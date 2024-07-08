@@ -1,0 +1,44 @@
+services:
+  redis:
+    image: redis:latest
+
+  metadata-service:
+    image: "ghcr.io/bsc-dom/dataclay:edge"
+    depends_on:
+      - redis
+    environment:
+      - DATACLAY_KV_HOST=redis
+      - DATACLAY_KV_PORT=6379
+      - DATACLAY_ID
+      - DATACLAY_PASSWORD=s3cret
+      - DATACLAY_USERNAME=testuser
+      - DATACLAY_DATASET=testdata
+      - DATACLAY_METADATA_PORT=16587
+      - DATACLAY_LOGLEVEL=DEBUG
+    command: python -m dataclay.metadata
+
+  backend:
+    image: "ghcr.io/bsc-dom/dataclay:edge"
+    depends_on:
+      - redis
+    environment:
+      - DATACLAY_KV_HOST=redis
+      - DATACLAY_KV_PORT=6379
+      - DATACLAY_BACKEND_ID
+      - DATACLAY_BACKEND_NAME
+      - DATACLAY_BACKEND_PORT=6867
+      - DATACLAY_LOGLEVEL=DEBUG
+    command: python -m dataclay.backend
+
+  restful:
+    build: .
+    depends_on:
+      - metadata-service
+      - backend
+    ports:
+      - "8080:80"
+    environment:
+      - DATACLAY_RESTFUL_REDIS_HOST=redis
+      - DATACLAY_RESTFUL_REDIS_PORT=6379
+      - DATACLAY_RESTFUL_MDS_HOST=metadata-service
+      - DATACLAY_RESTFUL_MDS_PORT=16587

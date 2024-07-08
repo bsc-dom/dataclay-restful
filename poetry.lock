@@ -325,14 +325,12 @@ files = [
 
 [[package]]
 name = "dataclay"
-version = "4.0.0"
+version = "4.0.1.dev0"
 description = "Python distributed data store that enables remotely access and method execution."
 optional = false
 python-versions = ">=3.9"
-files = [
-    {file = "dataclay-4.0.0-py3-none-any.whl", hash = "sha256:9a2b15fbcb862b908529916082b3d40d89548c72e78b52c6ccb2566665ea7538"},
-    {file = "dataclay-4.0.0.tar.gz", hash = "sha256:9e6293a9398205b70e2dafc9a280b47ff46d07c338243c7f01d8847cb046ee52"},
-]
+files = []
+develop = false
 
 [package.dependencies]
 aiorwlock = ">=1.4.0"
@@ -349,11 +347,17 @@ PyJWT = ">=2.8.0"
 redis = ">=5.0.1"
 
 [package.extras]
-bsc-mn = ["ansible", "ansible-runner", "python-dotenv"]
-dev = ["black", "grpcio-tools", "isort", "pytest", "pytest-docker", "tox"]
+bsc-mn = ["ansible", "ansible_runner", "python-dotenv"]
+dev = ["black", "coverage[toml]", "grpcio-tools", "isort", "pytest", "pytest-asyncio", "pytest-docker", "tox"]
 docs = ["furo", "sphinx-copybutton"]
 metrics = ["prometheus-client"]
 telemetry = ["opentelemetry-exporter-otlp-proto-grpc", "opentelemetry-instrumentation-grpc", "opentelemetry-instrumentation-redis", "opentelemetry-sdk"]
+
+[package.source]
+type = "git"
+url = "https://github.com/bsc-dom/dataclay.git"
+reference = "HEAD"
+resolved_reference = "198fef3104862f05fe0dffcdf3214637974e724b"
 
 [[package]]
 name = "deprecated"
@@ -2466,4 +2470,4 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "8fff352142133973dad2631680e8482c19e123114bdf598a66dc10313ec2dc7b"
+content-hash = "d47eb73baddbaf5fa667640a7fbee3f9a9f483c35b6188dd2d2f5be06b4c9678"

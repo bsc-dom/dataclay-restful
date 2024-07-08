@@ -18,7 +18,7 @@ pydantic = "^2"
 pydantic-settings = "^2"
 yarl = "^1.9.2"
 httptools = "^0.6.0"
-dataclay = "^4.0.0"
+dataclay = { git = "https://github.com/bsc-dom/dataclay.git" }
 orjson = "^3.10.6"
 
 
