@@ -1,6 +1,6 @@
 from fastapi.routing import APIRouter
 
-from dataclay_restful.web.api import echo, monitoring, resources, Person
+from dataclay_restful.web.api import echo, monitoring, resources
 
 api_router = APIRouter()
 api_router.include_router(monitoring.router)

@@ -1,4 +1,4 @@
-from typing import Any, Optional, Type
+from typing import Any, Optional, Type, get_type_hints
 from fastapi import APIRouter, HTTPException
 
 
@@ -17,9 +17,8 @@ from dataclay.exceptions import DoesNotExistError
 from dataclay.dataclay_object import DataClayObject
 from pydantic import AliasGenerator, BaseModel, ConfigDict, create_model
 from dataclay.config import session_var
-
 from dataclay.dataclay_object import DC_PROPERTY_PREFIX
-
+from pydantic.errors import PydanticSchemaGenerationError
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +26,25 @@ router = APIRouter()
 
 
 def create_pydantic_model_from_class(cls: Type) -> BaseModel:
-    annotations = cls.__annotations__
-    fields = {k: (Optional[v], None) for k, v in annotations.items()}
+    annotations = get_type_hints(cls)
+    fields = {}
     # TODO: May be necessary to define the ClassBase fields in a config file
     # because it may have types that are not serialized, and we need to
     # change them for proper FastAPI documentation. For example these:
-    fields["spouse"] = (Optional[UUID], None)
-    fields["dog"] = (Optional[UUID], None)
+    for k, v in annotations.items():
+        if issubclass(v, DataClayObject):
+            fields[k] = (Optional[UUID], None)
+        else:
+            # If there is a type that is not serializable, we raise an exception
+            try:
+                create_model("TempModel", field=(v, ...)).model_json_schema()
+            except PydanticSchemaGenerationError as e:
+                # TODO: Improve error handling
+                raise Exception(f"Type {v} is not serializable.") from e
+            fields[k] = (Optional[v], None)
+
+    print(fields)
+
     model_config = ConfigDict(
         alias_generator=AliasGenerator(
             serialization_alias=lambda field_name: DC_PROPERTY_PREFIX + field_name,
