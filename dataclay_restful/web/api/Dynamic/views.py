@@ -1,4 +1,5 @@
 import inspect
+import json
 from typing import Any, Optional, Type, get_type_hints
 from fastapi import APIRouter, HTTPException
 
@@ -36,18 +37,24 @@ def get_activemethods(cls) -> list[inspect.Signature]:
 
 
 # Function to create Pydantic models for method parameters
-def create_models_for_activemethods(cls):
+def create_pydantic_model_from_activemethods(cls):
     activemethods = get_activemethods(cls)
     models = {}
     for method in activemethods:
         sig = inspect.signature(method)
         parameters = list(sig.parameters.items())[1:]  # Skip the first parameter
-        fields = {
-            name: (param.annotation, ...)
-            for name, param in parameters
-            # NOTE: The following condition is not necessary (maybe)
-            # if param.annotation != param.empty and name != "self"
-        }
+
+        fields = {}
+        for name, param in parameters:
+            if issubclass(param.annotation, DataClayObject):
+                fields[name] = (Optional[UUID], None)
+            else:
+                try:
+                    create_model("TempModel", field=(param.annotation, ...)).model_json_schema()
+                except PydanticSchemaGenerationError as e:
+                    raise Exception(f"Type {param.annotation} is not serializable.") from e
+                fields[name] = (Optional[param.annotation], None)
+
         model_config = ConfigDict(arbitrary_types_allowed=True)
         model = create_model(f"{method.__name__}_Model", **fields, __config__=model_config)
         models[method.__name__] = model
@@ -84,10 +91,19 @@ def create_pydantic_model_from_class(cls: Type) -> BaseModel:
     return pydantic_model
 
 
+class CustomEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, DataClayObject):
+            return str(obj._dc_meta.id)
+        # elif isinstance(obj, UUID):
+        #     return str(obj)
+        return super().default(obj)
+
+
 def generate_routes_for_class(cls: DataClayObject) -> APIRouter:
     router = APIRouter()
-    PydanticModel = create_pydantic_model_from_class(cls)
-    models = create_models_for_activemethods(cls)
+    ClassModel = create_pydantic_model_from_class(cls)
+    activemethod_models = create_pydantic_model_from_activemethods(cls)
 
     @router.get("/")
     async def read_items(mds: MetadataAPI = Depends(get_mds)) -> list[ObjectMetadata]:
@@ -103,7 +119,14 @@ def generate_routes_for_class(cls: DataClayObject) -> APIRouter:
             raise HTTPException(
                 status_code=404, detail=f"{cls.__name__} with UUID {id} does not exist."
             )
-        return item.get_properties()
+
+        try:
+            properties = item.get_properties()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail="Failed to retrieve person properties.")
+        # print(json.dumps(properties, cls=CustomEncoder, indent=2))
+        # NOTE: Maybe use "inspect" to mirror the way is done to create ClassBaseModel
+        return json.loads(json.dumps(properties, cls=CustomEncoder))
 
     @router.get("/{id}/{attribute}")
     async def read_item_attribute(id: UUID, attribute: str) -> Any:
@@ -124,7 +147,7 @@ def generate_routes_for_class(cls: DataClayObject) -> APIRouter:
         return getattr(item, attribute)
 
     @router.patch("/{id}")
-    async def update_item(id: UUID, item_in: PydanticModel) -> Any:
+    async def update_item(id: UUID, item_in: ClassModel) -> Any:
         try:
             item = cls.get_by_id(id)
         except DoesNotExistError as e:
@@ -134,9 +157,9 @@ def generate_routes_for_class(cls: DataClayObject) -> APIRouter:
         item.dc_update_properties(item_in.model_dump(exclude_unset=True, by_alias=True))
         return {"message": "Attribute updated successfully."}
 
-    def create_route(method_name: str, model: BaseModel):
+    def create_route(method_name: str, MethodModel: BaseModel):
         @router.post(f"/{{id}}/{method_name}", name=method_name, response_model=Any)
-        async def call_item_method(id: UUID, body: model):
+        async def call_item_method(id: UUID, body: MethodModel):
             session_var.set(
                 {
                     "dataset_name": "admin",
@@ -152,14 +175,25 @@ def generate_routes_for_class(cls: DataClayObject) -> APIRouter:
                 )
 
             method = getattr(item, method_name)
+
+            # Looking for DataClayObject parameters to convert the UUIDS
+            sig = inspect.signature(method)
+            parameters = list(sig.parameters.items())[1:]
+            for name, param in parameters:
+                if issubclass(param.annotation, DataClayObject):
+                    body_dict = body.dict()
+                    body_dict[name] = param.annotation.get_by_id(body_dict[name])
+                    body = MethodModel(**body_dict)
+                # TODO: Handle nested types with DataClayObject
+
             result = method(**body.dict())
             return result
 
         return call_item_method
 
     # Create a route for each activemethod
-    for method_name, model in models.items():
-        create_route(method_name, model)
+    for method_name, MethodModel in activemethod_models.items():
+        create_route(method_name, MethodModel)
         # TODO: I think this is not necessary
         # router.post(f"/{{id}}/{method_name}", name=method_name, response_model=Any)(route_function)
 

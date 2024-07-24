@@ -17,6 +17,7 @@ from dataclay.utils import get_class_by_name
 # TODO: Define classes in config file
 for class_name in (
     "dataclay.contrib.modeltest.apirest.Product",
+    "dataclay.contrib.modeltest.apirest.Box",
     # "dataclay.contrib.modeltest.family.Person",
     # "dataclay.contrib.modeltest.family.Dog",
     # "dataclay.contrib.modeltest.classes.Dog",
