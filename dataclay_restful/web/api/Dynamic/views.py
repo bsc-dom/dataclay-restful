@@ -1,3 +1,4 @@
+import inspect
 from typing import Any, Optional, Type, get_type_hints
 from fastapi import APIRouter, HTTPException
 
@@ -25,6 +26,35 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+# Function to get activemethods
+def get_activemethods(cls) -> list[inspect.Signature]:
+    return [
+        method
+        for name, method in inspect.getmembers(cls, predicate=inspect.isfunction)
+        if getattr(method, "_is_activemethod", False)
+    ]
+
+
+# Function to create Pydantic models for method parameters
+def create_models_for_activemethods(cls):
+    activemethods = get_activemethods(cls)
+    models = {}
+    for method in activemethods:
+        sig = inspect.signature(method)
+        parameters = list(sig.parameters.items())[1:]  # Skip the first parameter
+        fields = {
+            name: (param.annotation, ...)
+            for name, param in parameters
+            # NOTE: The following condition is not necessary (maybe)
+            # if param.annotation != param.empty and name != "self"
+        }
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+        model = create_model(f"{method.__name__}_Model", **fields, __config__=model_config)
+        models[method.__name__] = model
+
+    return models
+
+
 def create_pydantic_model_from_class(cls: Type) -> BaseModel:
     annotations = get_type_hints(cls)
     fields = {}
@@ -43,8 +73,6 @@ def create_pydantic_model_from_class(cls: Type) -> BaseModel:
                 raise Exception(f"Type {v} is not serializable.") from e
             fields[k] = (Optional[v], None)
 
-    print(fields)
-
     model_config = ConfigDict(
         alias_generator=AliasGenerator(
             serialization_alias=lambda field_name: DC_PROPERTY_PREFIX + field_name,
@@ -59,6 +87,7 @@ def create_pydantic_model_from_class(cls: Type) -> BaseModel:
 def generate_routes_for_class(cls: DataClayObject) -> APIRouter:
     router = APIRouter()
     PydanticModel = create_pydantic_model_from_class(cls)
+    models = create_models_for_activemethods(cls)
 
     @router.get("/")
     async def read_items(mds: MetadataAPI = Depends(get_mds)) -> list[ObjectMetadata]:
@@ -66,7 +95,7 @@ def generate_routes_for_class(cls: DataClayObject) -> APIRouter:
             await mds.get_all_objects(filter_func=lambda x: cls.__name__ in x.class_name)
         ).values()
 
-    @router.get("/{uuid}")
+    @router.get("/{id}")
     async def read_item(id: UUID) -> Any:
         try:
             item = cls.get_by_id(id)
@@ -76,7 +105,7 @@ def generate_routes_for_class(cls: DataClayObject) -> APIRouter:
             )
         return item.get_properties()
 
-    @router.get("/{uuid}/{attribute}")
+    @router.get("/{id}/{attribute}")
     async def read_item_attribute(id: UUID, attribute: str) -> Any:
         # TODO: Improve the session handling with contextvars
         session_var.set(
@@ -94,7 +123,7 @@ def generate_routes_for_class(cls: DataClayObject) -> APIRouter:
             )
         return getattr(item, attribute)
 
-    @router.patch("/{uuid}")
+    @router.patch("/{id}")
     async def update_item(id: UUID, item_in: PydanticModel) -> Any:
         try:
             item = cls.get_by_id(id)
@@ -105,23 +134,33 @@ def generate_routes_for_class(cls: DataClayObject) -> APIRouter:
         item.dc_update_properties(item_in.model_dump(exclude_unset=True, by_alias=True))
         return {"message": "Attribute updated successfully."}
 
-    @router.post("/{uuid}/{method}")
-    async def call_item_method(id: UUID, method: str) -> Any:
-        # TODO: Improve the session handling with contextvars
-        session_var.set(
-            {
-                "dataset_name": "admin",
-                "username": "admin",
-                "token": "admin",
-            }
-        )
-
-        try:
-            item = cls.get_by_id(id)
-        except DoesNotExistError as e:
-            raise HTTPException(
-                status_code=404, detail=f"{cls.__name__} with UUID {id} does not exist."
+    def create_route(method_name: str, model: BaseModel):
+        @router.post(f"/{{id}}/{method_name}", name=method_name, response_model=Any)
+        async def call_item_method(id: UUID, body: model):
+            session_var.set(
+                {
+                    "dataset_name": "admin",
+                    "username": "admin",
+                    "token": "admin",
+                }
             )
-        return getattr(item, method)()
+            try:
+                item = cls.get_by_id(id)
+            except DoesNotExistError:
+                raise HTTPException(
+                    status_code=404, detail=f"{cls.__name__} with UUID {id} does not exist."
+                )
+
+            method = getattr(item, method_name)
+            result = method(**body.dict())
+            return result
+
+        return call_item_method
+
+    # Create a route for each activemethod
+    for method_name, model in models.items():
+        create_route(method_name, model)
+        # TODO: I think this is not necessary
+        # router.post(f"/{{id}}/{method_name}", name=method_name, response_model=Any)(route_function)
 
     return router
