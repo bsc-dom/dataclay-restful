@@ -65,9 +65,6 @@ def create_pydantic_model_from_activemethods(cls):
 def create_pydantic_model_from_class(cls: Type) -> BaseModel:
     annotations = get_type_hints(cls)
     fields = {}
-    # TODO: May be necessary to define the ClassBase fields in a config file
-    # because it may have types that are not serialized, and we need to
-    # change them for proper FastAPI documentation. For example these:
     for k, v in annotations.items():
         if issubclass(v, DataClayObject):
             fields[k] = (Optional[UUID], None)
@@ -155,7 +152,23 @@ def generate_routes_for_class(cls: DataClayObject) -> APIRouter:
             raise HTTPException(
                 status_code=404, detail=f"{cls.__name__} with UUID {id} does not exist."
             )
-        item.dc_update_properties(item_in.model_dump(exclude_unset=True, by_alias=True))
+
+        body_dict = item_in.model_dump(exclude_unset=True, by_alias=True)
+
+        # TODO: Make it more simple. Maybe use tags in the Pydantic model
+        annotations = get_type_hints(cls)
+        for name, value in annotations.items():
+            name = DC_PROPERTY_PREFIX + name
+            if issubclass(value, DataClayObject):
+                try:
+                    body_dict[name] = value.get_by_id(body_dict[name])
+                except DoesNotExistError as e:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"{value.__name__} with UUID {body_dict[name]} does not exist.",
+                    )
+
+        item.dc_update_properties(body_dict)
         return {"message": "Attribute updated successfully."}
 
     def create_route(method_name: str, MethodModel: BaseModel):
@@ -184,7 +197,13 @@ def generate_routes_for_class(cls: DataClayObject) -> APIRouter:
             body_dict = body.dict()
             for name, param in parameters:
                 if issubclass(param.annotation, DataClayObject):
-                    body_dict[name] = param.annotation.get_by_id(body_dict[name])
+                    try:
+                        body_dict[name] = param.annotation.get_by_id(body_dict[name])
+                    except DoesNotExistError as e:
+                        raise HTTPException(
+                            status_code=404,
+                            detail=f"{param.annotation.__name__} with UUID {body_dict[name]} does not exist.",
+                        )
                 # TODO: Handle nested types with DataClayObject
 
             result = method(**body_dict)
