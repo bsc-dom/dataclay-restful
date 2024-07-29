@@ -171,6 +171,9 @@ def generate_routes_for_class(cls: DataClayObject) -> APIRouter:
         item.dc_update_properties(body_dict)
         return {"message": "Attribute updated successfully."}
 
+    # TODO: Add a new route to create item. Must read the signature of the constructor
+    # Check how /Person was doing it (old commits)
+
     def create_route(method_name: str, MethodModel: BaseModel):
         @router.post(f"/{{id}}/{method_name}", name=method_name, response_model=Any)
         async def call_item_method(id: UUID, body: MethodModel):
