@@ -2,7 +2,7 @@ from fastapi.routing import APIRouter
 
 from dataclay_restful.web.api import echo, monitoring, resources
 
-from dataclay_restful.web.api.Dynamic.views import generate_routes_for_class
+from dataclay_restful.web.api.dynamic.views import generate_routes_for_class
 from dataclay.utils import get_class_by_name
 import rest_config
 

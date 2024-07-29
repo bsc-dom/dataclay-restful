@@ -69,6 +69,8 @@ def create_pydantic_model_from_class(cls: Type) -> BaseModel:
         if issubclass(v, DataClayObject):
             fields[k] = (Optional[UUID], None)
         else:
+            if k.startswith("_dc_"):
+                continue
             # If there is a type that is not serializable, we raise an exception
             try:
                 create_model("TempModel", field=(v, ...)).model_json_schema()
