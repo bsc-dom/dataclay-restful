@@ -144,7 +144,8 @@ def generate_routes_for_class(cls: DataClayObject) -> APIRouter:
             raise HTTPException(
                 status_code=404, detail=f"{cls.__name__} with UUID {id} does not exist."
             )
-        return getattr(item, attribute)
+        attribute_value = getattr(item, attribute)
+        return json.loads(json.dumps(attribute_value, cls=CustomEncoder))
 
     @router.patch("/{id}")
     async def update_item(id: UUID, item_in: ClassModel) -> Any:
@@ -178,15 +179,15 @@ def generate_routes_for_class(cls: DataClayObject) -> APIRouter:
 
             # Looking for DataClayObject parameters to convert the UUIDS
             sig = inspect.signature(method)
-            parameters = list(sig.parameters.items())[1:]
+            # Don't skip the first parameter because the method is already bound to the object
+            parameters = list(sig.parameters.items())
+            body_dict = body.dict()
             for name, param in parameters:
                 if issubclass(param.annotation, DataClayObject):
-                    body_dict = body.dict()
                     body_dict[name] = param.annotation.get_by_id(body_dict[name])
-                    body = MethodModel(**body_dict)
                 # TODO: Handle nested types with DataClayObject
 
-            result = method(**body.dict())
+            result = method(**body_dict)
             return result
 
         return call_item_method
